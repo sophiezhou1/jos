@@ -54,6 +54,9 @@ bootmain(void)
 		// p_pa is the load address of this segment (as well
 		// as the physical address)
 		readseg(ph->p_pa, ph->p_memsz, ph->p_offset);
+		// ph->p_offset is the location to read from
+		// read p_memz size
+		// load into ph->p_pa
 
 	// call the entry point from the ELF header
 	// note: does not return!

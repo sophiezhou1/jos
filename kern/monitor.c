@@ -13,6 +13,7 @@
 
 #define CMDBUF_SIZE	80	// enough for one VGA text line
 
+int mon_show(int argc, char **argv, struct Trapframe *tf);
 
 struct Command {
 	const char *name;
@@ -25,9 +26,24 @@ struct Command {
 static struct Command commands[] = {
 	{ "help", "Display this list of commands", mon_help },
 	{ "kerninfo", "Display information about the kernel", mon_kerninfo },
+	{ "hidden", "Run hidden test cases", exec_hidden_cases},
+	{ "show", "Display colorful ASCII art", mon_show },
 };
 
 /***** Implementations of basic kernel monitor commands *****/
+
+int
+mon_show(int argc, char **argv, struct Trapframe *tf)
+{
+    cprintf("\x1b[31m  ##     ##   #######   ######\n");
+    cprintf("\x1b[32m ##     ##  ##        ##    ##\n");
+    cprintf("\x1b[33m#########  ########   ####### \n");
+    cprintf("\x1b[34m      ##   ##     ##      ##  \n");
+    cprintf("\x1b[35m     ##     #######      ## \n");
+    cprintf("\x1b[0m");
+
+    return 0;
+}
 
 int
 mon_help(int argc, char **argv, struct Trapframe *tf)
