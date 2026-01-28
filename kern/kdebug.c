@@ -57,8 +57,7 @@ stab_binsearch(const struct Stab *stabs, int *region_left, int *region_right,
 		int true_m = (l + r) / 2, m = true_m;
 
 		// search for earliest stab with right type
-        while (m >= l && (stabs[m].n_type != type ||
-			 (stabs[m].n_type == N_FUN && stabs[m].n_strx == 0)))  // skip end-markers
+		while (m >= l && stabs[m].n_type != type)
 			m--;
 		if (m < l) {	// no match in [l, m]
 			l = true_m + 1;
@@ -87,8 +86,7 @@ stab_binsearch(const struct Stab *stabs, int *region_left, int *region_right,
 	else {
 		// find rightmost region containing 'addr'
 		for (l = *region_right;
-		     l > *region_left && (stabs[l].n_type != type || 
-			 (type == N_FUN && stabs[l].n_strx == 0)); //skip end-markers 
+		     l > *region_left && stabs[l].n_type != type;
 		     l--)
 			/* do nothing */;
 		*region_left = l;
@@ -144,7 +142,7 @@ debuginfo_eip(uintptr_t addr, struct Eipdebuginfo *info)
 	stab_binsearch(stabs, &lfile, &rfile, N_SO, addr);
 	if (lfile == 0)
 		return -1;
-
+	
 	// Search within that file's stabs for the function definition
 	// (N_FUN).
 	lfun = lfile;
@@ -182,12 +180,13 @@ debuginfo_eip(uintptr_t addr, struct Eipdebuginfo *info)
 	//	Look at the STABS documentation and <inc/stab.h> to find
 	//	which one.
 	// Your code here.
-	stab_binsearch(stabs, &lline, &rline, N_SLINE, addr);
-	if (lline > rline)
-		return -1;
-
-	info->eip_line = stabs[lline].n_desc;
-
+	
+	stab_binsearch(stabs, &lline, &rline, N_SLINE, addr); // Use the relative addr
+		if (lline <= rline) {
+			info->eip_line = stabs[lline].n_desc;
+		} else {
+			return -1;
+		}
 	// Search backwards from the line number for the relevant filename
 	// stab.
 	// We can't just use the "lfile" stab because inlined functions
