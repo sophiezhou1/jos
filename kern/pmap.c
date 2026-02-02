@@ -110,7 +110,6 @@ boot_alloc(uint32_t n)
 	result = nextfree;
 	nextfree = ROUNDUP(nextfree + n, PGSIZE);
 
-	// Panic if we ran out of physical memory.
 	if ((uintptr_t) nextfree >= KERNBASE + (npages * PGSIZE))
 		panic("boot_alloc: out of memory");
 
@@ -268,7 +267,28 @@ page_init(void)
 	// NB: DO NOT actually touch the physical memory corresponding to
 	// free pages!
 	size_t i;
+	physaddr_t kernel_end_addr = (physaddr_t) PADDR(boot_alloc(0));
 	for (i = 0; i < npages; i++) {
+		physaddr_t pa = i * PGSIZE;
+		// page 0: reserved
+		if (i == 0) {
+			pages[i].pp_ref = 1;
+			pages[i].pp_link = NULL;
+			continue;
+		}
+		// IO hole: [IOPHYSMEM, EXTPHYSMEM)
+		if (pa >= IOPHYSMEM && pa < EXTPHYSMEM) {
+			pages[i].pp_ref = 1;
+			pages[i].pp_link = NULL;
+			continue;
+		}
+		// [EXTPHYSMEM, kernel_end_addr)
+		if (pa >= EXTPHYSMEM && pa < kernel_end_addr) {
+			pages[i].pp_ref = 1;
+			pages[i].pp_link = NULL;
+			continue;
+		}
+		// all other pages are free
 		pages[i].pp_ref = 0;
 		pages[i].pp_link = page_free_list;
 		page_free_list = &pages[i];
@@ -290,8 +310,17 @@ page_init(void)
 struct PageInfo *
 page_alloc(int alloc_flags)
 {
-	// Fill this function in
-	return 0;
+	if (page_free_list == NULL)
+		return NULL;
+
+	struct PageInfo *pp = page_free_list;
+	page_free_list = pp->pp_link;
+	pp->pp_link = NULL;
+
+	if (alloc_flags & ALLOC_ZERO)
+		memset(page2kva(pp), 0, PGSIZE);
+
+	return pp;
 }
 
 //
@@ -304,6 +333,14 @@ page_free(struct PageInfo *pp)
 	// Fill this function in
 	// Hint: You may want to panic if pp->pp_ref is nonzero or
 	// pp->pp_link is not NULL.
+
+	if (pp->pp_ref != 0)
+		panic("page_free: pp_ref is non_zero");
+	if (pp->pp_link != NULL)
+		panic("page_free: pp_link is not NULL");
+
+	pp->pp_link = page_free_list;
+	page_free_list = pp;
 }
 
 //
