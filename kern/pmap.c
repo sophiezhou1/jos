@@ -105,6 +105,20 @@ boot_alloc(uint32_t n)
 	//
 	// LAB 2: Your code here.
 
+	
+	if(n > 0){
+		result = nextfree;
+		nextfree = ROUNDUP(nextfree + n, PGSIZE);
+		
+		//panic
+		if ((uintptr_t)nextfree >= KERNBASE + (npages * PGSIZE)) {
+			panic("boot_alloc: out of memory");
+		}
+	} 
+	if (n == 0){
+		return nextfree;
+	}
+
 	return NULL;
 }
 
@@ -543,7 +557,7 @@ check_page_alloc(void)
 	// should be no free memory
 	assert(!page_alloc(0));
 
-	// free and re-allocate?
+	// free ajosnd re-allocate?
 	page_free(pp0);
 	page_free(pp1);
 	page_free(pp2);
