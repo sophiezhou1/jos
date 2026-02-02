@@ -102,24 +102,19 @@ boot_alloc(uint32_t n)
 	// Allocate a chunk large enough to hold 'n' bytes, then update
 	// nextfree.  Make sure nextfree is kept aligned
 	// to a multiple of PGSIZE.
-	//
 	// LAB 2: Your code here.
 
-	
-	if(n > 0){
-		result = nextfree;
-		nextfree = ROUNDUP(nextfree + n, PGSIZE);
-		
-		//panic
-		if ((uintptr_t)nextfree >= KERNBASE + (npages * PGSIZE)) {
-			panic("boot_alloc: out of memory");
-		}
-	} 
-	if (n == 0){
+	if (n == 0)
 		return nextfree;
-	}
 
-	return NULL;
+	result = nextfree;
+	nextfree = ROUNDUP(nextfree + n, PGSIZE);
+
+	// Panic if we ran out of physical memory.
+	if ((uintptr_t) nextfree >= KERNBASE + (npages * PGSIZE))
+		panic("boot_alloc: out of memory");
+
+	return result;
 }
 
 // Set up a two-level page table:
@@ -140,8 +135,6 @@ mem_init(void)
 	// Find out how much memory the machine has (npages & npages_basemem).
 	i386_detect_memory();
 
-	// Remove this line when you're ready to test this function.
-	panic("mem_init: This function is not finished\n");
 
 	//////////////////////////////////////////////////////////////////////
 	// create initial page directory.
@@ -164,6 +157,8 @@ mem_init(void)
 	// array.  'npages' is the number of physical pages in memory.  Use memset
 	// to initialize all fields of each struct PageInfo to 0.
 	// Your code goes here:
+	pages = (struct PageInfo *) boot_alloc(npages * sizeof(struct PageInfo));
+	memset(pages, 0, npages * sizeof(struct PageInfo));
 
 
 	//////////////////////////////////////////////////////////////////////
