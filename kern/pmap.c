@@ -114,6 +114,7 @@ boot_alloc(uint32_t n)
 		if ((uintptr_t)nextfree >= KERNBASE + (npages * PGSIZE)) {
 			panic("boot_alloc: out of memory");
 		}
+		return result;
 	} 
 	if (n == 0){
 		return nextfree;
