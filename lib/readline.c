@@ -3,7 +3,7 @@
 
 #define BUFLEN 1024
 static char buf[BUFLEN];
-//comment
+
 char *
 readline(const char *prompt)
 {
