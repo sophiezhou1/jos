@@ -110,7 +110,6 @@ boot_alloc(uint32_t n)
 	result = nextfree;
 	nextfree = ROUNDUP(nextfree + n, PGSIZE);
 
-	// Panic if we ran out of physical memory.
 	if ((uintptr_t) nextfree >= KERNBASE + (npages * PGSIZE))
 		panic("boot_alloc: out of memory");
 
@@ -268,36 +267,31 @@ page_init(void)
 	// NB: DO NOT actually touch the physical memory corresponding to
 	// free pages!
 	size_t i;
-
-	// Calculate the ceiling once before the loop
-    physaddr_t firstFree = PADDR(boot_alloc(0));
-
+	physaddr_t kernel_end_addr = (physaddr_t) PADDR(boot_alloc(0));
 	for (i = 0; i < npages; i++) {
-		// physical address of the current page 'i' to check ranges
-        physaddr_t pa = i * PGSIZE;
-
-		// Range 1: Physical page 0 is in use
-        if (i == 0) {
-            pages[i].pp_ref = 1;
-            pages[i].pp_link = NULL;
-        }
-
-		// Range 3 & 4: The IO hole [IOPHYSMEM, EXTPHYSMEM) 
-		// AND the used part of extended memory [EXTPHYSMEM, first_free_pa)
-		else if (pa >= IOPHYSMEM && pa < firstFree) {
+		physaddr_t pa = i * PGSIZE;
+		// page 0: reserved
+		if (i == 0) {
 			pages[i].pp_ref = 1;
 			pages[i].pp_link = NULL;
+			continue;
 		}
-		// Range 2 & 4 (free parts): Everything else is free!
-		else {
-				pages[i].pp_ref = 0;
-				pages[i].pp_link = page_free_list;
-				page_free_list = &pages[i];
+		// IO hole: [IOPHYSMEM, EXTPHYSMEM)
+		if (pa >= IOPHYSMEM && pa < EXTPHYSMEM) {
+			pages[i].pp_ref = 1;
+			pages[i].pp_link = NULL;
+			continue;
 		}
-
-		//pages[i].pp_ref = 0;
-		//pages[i].pp_link = page_free_list;
-		//page_free_list = &pages[i];
+		// [EXTPHYSMEM, kernel_end_addr)
+		if (pa >= EXTPHYSMEM && pa < kernel_end_addr) {
+			pages[i].pp_ref = 1;
+			pages[i].pp_link = NULL;
+			continue;
+		}
+		// all other pages are free
+		pages[i].pp_ref = 0;
+		pages[i].pp_link = page_free_list;
+		page_free_list = &pages[i];
 	}
 }
 
@@ -316,28 +310,17 @@ page_init(void)
 struct PageInfo *
 page_alloc(int alloc_flags)
 {
-	// Fill this function in
+	if (page_free_list == NULL)
+		return NULL;
 
-	struct PageInfo *pp;
+	struct PageInfo *pp = page_free_list;
+	page_free_list = pp->pp_link;
+	pp->pp_link = NULL;
 
-    // 1. Check if we have any free pages left
-    if (page_free_list == NULL) {
-        return NULL;
-    }
+	if (alloc_flags & ALLOC_ZERO)
+		memset(page2kva(pp), 0, PGSIZE);
 
-    // 2. "Pop" the page from the head of the list
-    pp = page_free_list;
-    page_free_list = pp->pp_link;
-
-    // 3. Clear the pp_link so page_free can catch double-frees
-    pp->pp_link = NULL;
-
-    // 4. Handle the ALLOC_ZERO flag
-    if (alloc_flags & ALLOC_ZERO) {
-        memset(page2kva(pp), 0, PGSIZE);
-    }
-
-    return pp;
+	return pp;
 }
 
 //
@@ -351,19 +334,13 @@ page_free(struct PageInfo *pp)
 	// Hint: You may want to panic if pp->pp_ref is nonzero or
 	// pp->pp_link is not NULL.
 
-	//Check if reference not zero
-	if (pp->pp_ref != 0) {
-        panic("page_free: attempt to free a page that still has %d references!", pp->pp_ref);
-    }
+	if (pp->pp_ref != 0)
+		panic("page_free: pp_ref is non_zero");
+	if (pp->pp_link != NULL)
+		panic("page_free: pp_link is not NULL");
 
-	// Check if not null
-	if (pp->pp_link != NULL) {
-        panic("page_free: attempt to free a page that is already on the free list!");
-    }
-
-	// Add page to head 
 	pp->pp_link = page_free_list;
-    page_free_list = pp;
+	page_free_list = pp;
 }
 
 //
@@ -402,9 +379,21 @@ page_decref(struct PageInfo* pp)
 pte_t *
 pgdir_walk(pde_t *pgdir, const void *va, int create)
 {
-	
-	// Fill this function in
-	return NULL;
+	pde_t *pde = &pgdir[PDX(va)];
+
+	if (*pde & PTE_P) {
+		pde_t *pt = (pde_t *)KADDR(PTE_ADDR(*pde));
+		return &pt[PTX(va)];
+	}
+
+	if (!create)
+		return NULL;
+
+	struct PageInfo* pp = page_alloc(ALLOC_ZERO);
+	pp->pp_ref++;
+	*pde = page2pa(pp) | PTE_P | PTE_W | PTE_U;
+	pde_t *pt = (pde_t *)KADDR(PTE_ADDR(*pde));
+	return &pt[PTX(va)];
 }
 
 //
