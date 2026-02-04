@@ -485,7 +485,6 @@ page_lookup(pde_t *pgdir, void *va, pte_t **pte_store)
 	if (pte_store != NULL) { // If pte_store is not zero, then we store in it the address
         *pte_store = pte;
     }
-	return NULL;
 
 	return pa2page(PTE_ADDR(*pte));
 }
