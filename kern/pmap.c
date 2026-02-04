@@ -379,8 +379,21 @@ page_decref(struct PageInfo* pp)
 pte_t *
 pgdir_walk(pde_t *pgdir, const void *va, int create)
 {
-	// Fill this function in
-	return NULL;
+	pde_t *pde = &pgdir[PDX(va)];
+
+	if (*pde & PTE_P) {
+		pde_t *pt = (pde_t *)KADDR(PTE_ADDR(*pde));
+		return &pt[PTX(va)];
+	}
+
+	if (!create)
+		return NULL;
+
+	struct PageInfo* pp = page_alloc(ALLOC_ZERO);
+	pp->pp_ref++;
+	*pde = page2pa(pp) | PTE_P | PTE_W | PTE_U;
+	pde_t *pt = (pde_t *)KADDR(PTE_ADDR(*pde));
+	return &pt[PTX(va)];
 }
 
 //
