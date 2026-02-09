@@ -1,9 +1,34 @@
 a. What entries (rows) in the page directory have been filled in at this point? What addresses do they map and where do they point? In other words, fill out this table as much as possible:
-
+    +-----+----------------------+---------------------------------------+
+    |Entry| Base Virtual Address |  Points to (logically)                |
+    +=====+======================+=======================================+
+    |1023 | 0xFFC00000           | Page table for top 4MB of phys memory |
+    +-----+----------------------+---------------------------------------+
+    |1022 | 0xFF800000           | Page table for physical memory        |
+    +-----+----------------------+---------------------------------------+
+    |.    | ?                    | ?                                     |
+    +-----+----------------------+---------------------------------------+
+    |.    | ?                    | ?                                     |
+    +-----+----------------------+---------------------------------------+
+    |.    | ?                    | ?                                     |
+    +-----+----------------------+---------------------------------------+
+    |2    | 0x00800000           | ?                                     |
+    +-----+----------------------+---------------------------------------+
+    |1    | 0x00400000           | ?                                     |
+    +-----+----------------------+---------------------------------------+
+    |0    | 0x00000000           | [see next question]                   |
+    +-----+----------------------+---------------------------------------+
 b. We have placed the kernel and user environment in the same address space. Why will user programs not be able to read or write the kernel’s memory? What specific mechanisms protect the kernel memory?
-
+    * User programs are blocked by the Supervisor/User bit in the Page Table Entry.
 c. What is the maximum amount of physical memory that this operating system can support? Why?
-
+    * 256 MB (0xFFFFFFFF−0xF0000000=0x0FFFFFFF≈256 MB)
 d. How much space overhead is there for managing memory, if we actually had the maximum amount of physical memory? How is this overhead broken down?
-
+    * 772 Kb. 
+        * PageInfo Array: 32,768 pages (if 256MB) × 8 bytes = 512 KB.
+        * Page Directory: 1 page = 4 KB.
+        * Page Tables: 64 page tables. 64×4 KB = 256 KB.
+        * Total: 512+4+256=772 KB.
 e. Revisit the page table setup in kern/entry.S and kern/entrypgdir.c. Immediately after we turn on paging, EIP is still a low number (a little over 1MB). At what point do we transition to running at an EIP above KERNBASE? What makes it possible for us to continue executing at a low EIP between when we enable paging and when we begin running at an EIP above KERNBASE? Why is this transition necessary?
+        * The transition happens at the instruction jmp *%eax. The entry_pgdir uses double mapping. 
+          This ensures that when paging is enabled, the instruction the CPU is currently executing 
+          still exists.
