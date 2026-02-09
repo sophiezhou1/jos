@@ -17,6 +17,8 @@
 
 
 int mon_show(int argc, char **argv, struct Trapframe *tf);
+int mon_showmappings(int argc, char **argv, struct Trapframe *tf);
+
 
 struct Command {
 	const char *name;
@@ -33,6 +35,7 @@ static struct Command commands[] = {
 	{ "backtrace", "Display a stack backtrace", mon_backtrace },
 	// { "hidden", "Run hidden test cases", exec_hidden_cases},
 	{ "show", "Display colorful ASCII art", mon_show },
+	{ "showmappings", "Display physical page mappings for a VA range", mon_showmappings },
 };
 
 /***** Implementations of basic kernel monitor commands *****/
@@ -175,4 +178,31 @@ mon_show(int argc, char **argv, struct Trapframe *tf)
 
     return 0;
 
+}
+
+int mon_showmappings(int argc, char **argv, struct Trapframe *tf) {
+    if (argc != 3) {
+        cprintf("Usage: showmappings [begin_va] [end_va]\n");
+        return 0;
+    }
+
+    uintptr_t begin = (uintptr_t)strtol(argv[1], NULL, 16);
+    uintptr_t end = (uintptr_t)strtol(argv[2], NULL, 16);
+
+    for (; begin <= end; begin += PGSIZE) {
+        pte_t *pte = pgdir_walk(kern_pgdir, (void *)begin, 0);
+        
+        cprintf("VA: 0x%08x -> ", begin);
+        if (!pte || !(*pte & PTE_P)) {
+            cprintf("Not Mapped\n");
+        } else {
+            // PTE_ADDR strips the permission bits to give the Physical Address
+            cprintf("PA: 0x%08x | Perms: %s%s%s\n", 
+                PTE_ADDR(*pte),
+                (*pte & PTE_W) ? "W" : "R",
+                (*pte & PTE_U) ? "U" : "S",
+                (*pte & PTE_P) ? "P" : "-");
+        }
+    }
+    return 0;
 }
