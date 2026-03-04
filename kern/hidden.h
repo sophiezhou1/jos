@@ -9,4 +9,4 @@
 #include <kern/pmap.h>
 #include <kern/kclock.h>
 
-void hidden_test_cases();
+bool hidden_test_cases();
