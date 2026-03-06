@@ -199,7 +199,11 @@ trap_dispatch(struct Trapframe *tf)
         case T_PGFLT:
             page_fault_handler(tf);
             return;
-            
+
+		case T_DEBUG:
+			monitor(tf);
+			return;
+
         case T_BRKPT:
             monitor(tf);
             return;
@@ -284,4 +288,3 @@ page_fault_handler(struct Trapframe *tf)
 	print_trapframe(tf);
 	env_destroy(curenv);
 }
-

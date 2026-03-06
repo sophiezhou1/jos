@@ -3,6 +3,7 @@
 
 #include <inc/stdio.h>
 #include <inc/string.h>
+#include <inc/mmu.h>
 #include <inc/memlayout.h>
 #include <inc/assert.h>
 #include <inc/x86.h>
@@ -18,6 +19,8 @@
 
 int mon_show(int argc, char **argv, struct Trapframe *tf);
 int mon_showmappings(int argc, char **argv, struct Trapframe *tf);
+int mon_continue(int argc, char **argv, struct Trapframe *tf);
+int mon_si(int argc, char **argv, struct Trapframe *tf);
 
 
 struct Command {
@@ -36,6 +39,8 @@ static struct Command commands[] = {
 	// { "hidden", "Run hidden test cases", exec_hidden_cases},
 	{ "show", "Display colorful ASCII art", mon_show },
 	{ "showmappings", "Display physical page mappings for a VA range", mon_showmappings },
+	{ "continue", "Continue execution", mon_continue },
+	{ "si", "Single-step one instruction", mon_si },
 };
 
 /***** Implementations of basic kernel monitor commands *****/
@@ -204,4 +209,28 @@ int mon_showmappings(int argc, char **argv, struct Trapframe *tf) {
         }
     }
     return 0;
+}
+
+int
+mon_continue(int argc, char **argv, struct Trapframe *tf)
+{
+	if (tf == NULL) {
+		cprintf("No current trap frame.\n");
+		return 0;
+	}
+
+	tf->tf_eflags &= ~FL_TF;
+	return -1;
+}
+
+int
+mon_si(int argc, char **argv, struct Trapframe *tf)
+{
+	if (tf == NULL) {
+		cprintf("No current trap frame.\n");
+		return 0;
+	}
+
+	tf->tf_eflags |= FL_TF;
+	return -1;
 }

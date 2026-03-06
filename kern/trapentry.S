@@ -96,6 +96,37 @@ _alltraps:
 
     # Call trap (it will never return)
     call trap
- 
 
+
+.globl sysenter_handler
+.type sysenter_handler, @function
+.align 2
+sysenter_handler:
+
+	pushl %ebp
+	pushl %esi
+	pushl %edi
+	pushl %ebx
+
+	movl $GD_KD, %ebx
+	movw %bx, %ds
+	movw %bx, %es
+
+	movl %esp, %ebp
+
+	pushl $0
+	pushl 4(%ebp)
+	pushl 0(%ebp)
+	pushl %ecx
+	pushl %edx
+	pushl %eax
+	call syscall
+	addl $24, %esp
+
+	movl 0(%ebp), %ebx
+	movl 4(%ebp), %edi
+	movl 12(%ebp), %ecx
+	movl 8(%ebp), %edx
+	addl $16, %esp
+	sysexit
 

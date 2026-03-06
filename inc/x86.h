@@ -3,6 +3,10 @@
 
 #include <inc/types.h>
 
+#define MSR_IA32_SYSENTER_CS	0x174
+#define MSR_IA32_SYSENTER_ESP	0x175
+#define MSR_IA32_SYSENTER_EIP	0x176
+
 static inline void
 breakpoint(void)
 {
@@ -246,6 +250,14 @@ read_tsc(void)
 	uint64_t tsc;
 	asm volatile("rdtsc" : "=A" (tsc));
 	return tsc;
+}
+
+static inline void
+wrmsr(uint32_t msr, uint64_t val)
+{
+	uint32_t lo = val;
+	uint32_t hi = val >> 32;
+	asm volatile("wrmsr" : : "c" (msr), "a" (lo), "d" (hi));
 }
 
 static inline uint32_t

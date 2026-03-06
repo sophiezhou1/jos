@@ -3,6 +3,7 @@
 #include <inc/stdio.h>
 #include <inc/string.h>
 #include <inc/assert.h>
+#include <inc/x86.h>
 
 #include <kern/monitor.h>
 #include <kern/console.h>
@@ -16,6 +17,7 @@ void
 i386_init(void)
 {
 	extern char edata[], end[];
+	extern void sysenter_handler(void);
 
 	// Before doing anything else, complete the ELF loading process.
 	// Clear the uninitialized global data (BSS) section of our program.
@@ -34,6 +36,9 @@ i386_init(void)
 	// Lab 3 user environment initialization functions
 	env_init();
 	trap_init();
+	wrmsr(MSR_IA32_SYSENTER_CS, GD_KT);
+	wrmsr(MSR_IA32_SYSENTER_ESP, KSTACKTOP);
+	wrmsr(MSR_IA32_SYSENTER_EIP, (uint32_t) sysenter_handler);
 
 #if defined(TEST)
 	// Don't touch -- used by grading script!
