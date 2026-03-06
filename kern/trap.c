@@ -96,7 +96,6 @@ trap_init(void)
      *
      */
 	// LAB 3: Your code here.
-	// LAB 3: Your code here.
     SETGATE(idt[T_DIVIDE], 0, GD_KT, th_divide, 0);
     SETGATE(idt[T_DEBUG], 0, GD_KT, th_debug, 0);
     SETGATE(idt[T_NMI], 0, GD_KT, th_nmi, 0);
