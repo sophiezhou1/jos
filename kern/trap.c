@@ -79,6 +79,7 @@ void th_fperr();
 void th_align();
 void th_mchk();
 void th_simderr();
+void th_syscall();
 
 void
 trap_init(void)
@@ -114,6 +115,7 @@ trap_init(void)
     SETGATE(idt[T_ALIGN], 0, GD_KT, th_align, 0);
     SETGATE(idt[T_MCHK], 0, GD_KT, th_mchk, 0);
     SETGATE(idt[T_SIMDERR], 0, GD_KT, th_simderr, 0);
+	SETGATE(idt[T_SYSCALL], 0, GD_KT, th_syscall, 3);// Step 7
 
 	// Per-CPU setup
 	trap_init_percpu();
@@ -200,6 +202,16 @@ trap_dispatch(struct Trapframe *tf)
             
         case T_BRKPT:
             monitor(tf);
+            return;
+			case T_SYSCALL:
+            tf->tf_regs.reg_eax = syscall(
+                tf->tf_regs.reg_eax, // syscall number
+                tf->tf_regs.reg_edx, // arg1
+                tf->tf_regs.reg_ecx, // arg2
+                tf->tf_regs.reg_ebx, // arg3
+                tf->tf_regs.reg_edi, // arg4
+                tf->tf_regs.reg_esi  // arg5
+            );
             return;
     }
 	// Unexpected trap: The user process or the kernel has a bug.
