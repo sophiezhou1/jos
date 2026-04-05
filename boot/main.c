@@ -59,6 +59,9 @@ bootmain(void)
 			*((char *) ph->p_pa + ph->p_filesz + i) = 0;
 		}
 	}
+		// ph->p_offset is the location to read from
+		// read p_memz size
+		// load into ph->p_pa
 
 	// call the entry point from the ELF header
 	// note: does not return!

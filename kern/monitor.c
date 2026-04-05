@@ -3,6 +3,7 @@
 
 #include <inc/stdio.h>
 #include <inc/string.h>
+#include <inc/mmu.h>
 #include <inc/memlayout.h>
 #include <inc/assert.h>
 #include <inc/x86.h>
@@ -11,8 +12,15 @@
 #include <kern/monitor.h>
 #include <kern/kdebug.h>
 #include <kern/trap.h>
+#include <kern/hidden.h>
 
 #define CMDBUF_SIZE	80	// enough for one VGA text line
+
+
+int mon_show(int argc, char **argv, struct Trapframe *tf);
+int mon_showmappings(int argc, char **argv, struct Trapframe *tf);
+int mon_continue(int argc, char **argv, struct Trapframe *tf);
+int mon_si(int argc, char **argv, struct Trapframe *tf);
 
 
 struct Command {
@@ -22,10 +30,17 @@ struct Command {
 	int (*func)(int argc, char** argv, struct Trapframe* tf);
 };
 
+
 // LAB 1: add your command to here...
 static struct Command commands[] = {
 	{ "help", "Display this list of commands", mon_help },
 	{ "kerninfo", "Display information about the kernel", mon_kerninfo },
+	{ "backtrace", "Display a stack backtrace", mon_backtrace },
+	// { "hidden", "Run hidden test cases", exec_hidden_cases},
+	{ "show", "Display colorful ASCII art", mon_show },
+	{ "showmappings", "Display physical page mappings for a VA range", mon_showmappings },
+	{ "continue", "Continue execution", mon_continue },
+	{ "si", "Single-step one instruction", mon_si },
 };
 
 /***** Implementations of basic kernel monitor commands *****/
@@ -59,9 +74,31 @@ mon_kerninfo(int argc, char **argv, struct Trapframe *tf)
 int
 mon_backtrace(int argc, char **argv, struct Trapframe *tf)
 {
-	// LAB 1: Your code here.
-    // HINT 1: use read_ebp().
-    // HINT 2: print the current ebp on the first line (not current_ebp[0])
+	uint32_t ebp, *ptr_ebp;
+	struct Eipdebuginfo info;
+
+	ebp = read_ebp();
+	cprintf("Stack backtrace:\n");
+
+	while (ebp != 0) {
+		ptr_ebp = (uint32_t *)ebp;
+		uint32_t eip = ptr_ebp[1];
+
+		// Print the frame info
+		cprintf("  ebp %08x  eip %08x  args %08x %08x %08x %08x %08x\n",
+		        ebp, eip, ptr_ebp[2], ptr_ebp[3], ptr_ebp[4], ptr_ebp[5], ptr_ebp[6]);
+
+		// Print the metadata with EXACTLY 9 spaces indentation
+		if (debuginfo_eip(eip, &info) == 0) {
+			cprintf("         %s:%d: %.*s+%d\n",
+			        info.eip_file,
+			        info.eip_line,
+			        info.eip_fn_namelen, info.eip_fn_name,
+			        eip - info.eip_fn_addr);
+		}
+
+		ebp = ptr_ebp[0];
+	}
 	return 0;
 }
 
@@ -128,4 +165,72 @@ monitor(struct Trapframe *tf)
 			if (runcmd(buf, tf) < 0)
 				break;
 	}
+}
+
+int
+
+mon_show(int argc, char **argv, struct Trapframe *tf)
+
+{
+
+    cprintf("\x1b[31m  ##     ##   #######   ######\n");
+    cprintf("\x1b[32m ##     ##  ##        ##    ##\n");
+    cprintf("\x1b[33m#########  ########   ####### \n");
+    cprintf("\x1b[34m      ##   ##     ##      ##  \n");
+    cprintf("\x1b[35m     ##     #######      ## \n");
+    cprintf("\x1b[0m");
+
+    return 0;
+
+}
+
+int mon_showmappings(int argc, char **argv, struct Trapframe *tf) {
+    if (argc != 3) {
+        cprintf("Usage: showmappings [begin_va] [end_va]\n");
+        return 0;
+    }
+
+    uintptr_t begin = (uintptr_t)strtol(argv[1], NULL, 16);
+    uintptr_t end = (uintptr_t)strtol(argv[2], NULL, 16);
+
+    for (; begin <= end; begin += PGSIZE) {
+        pte_t *pte = pgdir_walk(kern_pgdir, (void *)begin, 0);
+        
+        cprintf("VA: 0x%08x -> ", begin);
+        if (!pte || !(*pte & PTE_P)) {
+            cprintf("Not Mapped\n");
+        } else {
+            // PTE_ADDR strips the permission bits to give the Physical Address
+            cprintf("PA: 0x%08x | Perms: %s%s%s\n", 
+                PTE_ADDR(*pte),
+                (*pte & PTE_W) ? "W" : "R",
+                (*pte & PTE_U) ? "U" : "S",
+                (*pte & PTE_P) ? "P" : "-");
+        }
+    }
+    return 0;
+}
+
+int
+mon_continue(int argc, char **argv, struct Trapframe *tf)
+{
+	if (tf == NULL) {
+		cprintf("No current trap frame.\n");
+		return 0;
+	}
+
+	tf->tf_eflags &= ~FL_TF;
+	return -1;
+}
+
+int
+mon_si(int argc, char **argv, struct Trapframe *tf)
+{
+	if (tf == NULL) {
+		cprintf("No current trap frame.\n");
+		return 0;
+	}
+
+	tf->tf_eflags |= FL_TF;
+	return -1;
 }
