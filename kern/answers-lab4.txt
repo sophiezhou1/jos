@@ -27,11 +27,9 @@ In your implementation of env_run() you should have called lcr3(). Before and af
     location, the pointer can be dereferenced both before and after the context switch.
 
 Whenever the kernel switches from one environment to another, it must ensure the old environment’s registers are saved so they can be restored properly later. Why? Where does this happen?
-    While the Big Kernel Lock (BKL) restricts kernel code execution to a single CPU at a time, it 
-    cannot protect the hardware-level context switch that happens the exact moment a trap occurs.
-    Before the kernel software has a chance to request the BKL, the x86 processor automatically 
-    pushes critical state onto the kernel stack. If all CPUs shared the same stack, two processors 
-    taking an interrupt simultaneously would push their state to the exact same memory addresses. 
-    This collision would completely corrupt the trap frames before the software lock is ever engaged, 
-    resulting in a fatal crash when the system eventually tries to restore that corrupted state to 
-    return to user mode.
+    When the kernel switches environments, the old environment's registers must be saved so execution 
+    can resume exactly where it left off when it's scheduled again. Without saving state like %eip, %esp,
+    and %eflags, the kernel would have no way to correctly restore the process. This happens at trap entry.
+    The x86 hardware automatically pushes key registers onto the kernel stack, and trapentry.S pushes the
+    rest, forming a struct Trapframe. In trap(), this is copied into curenv->env_tf. When the environment
+    is later rescheduled, env_run() calls env_pop_tf() to restore all saved registers and resume execution.
