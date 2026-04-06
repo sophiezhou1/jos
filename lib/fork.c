@@ -24,7 +24,9 @@ pgfault(struct UTrapframe *utf)
 	//   Use the read-only page table mappings at uvpt
 	//   (see <inc/memlayout.h>).
 
-	// LAB 4: Your code here.
+	if (!((err & FEC_WR) && (uvpt[PGNUM(addr)] & PTE_COW)))
+		panic("pgfault: not a write to a COW page. va=%08x err=%08x pte=%08x",
+		      addr, err, uvpt[PGNUM(addr)]);
 
 	// Allocate a new page, map it at a temporary location (PFTEMP),
 	// copy the data from the old page to the new page, then move the new
@@ -33,8 +35,18 @@ pgfault(struct UTrapframe *utf)
 	//   You should make three system calls.
 
 	// LAB 4: Your code here.
+	addr = ROUNDDOWN(addr, PGSIZE);
 
-	panic("pgfault not implemented");
+	if ((r = sys_page_alloc(0, PFTEMP, PTE_P | PTE_U | PTE_W)) < 0)
+		panic("pgfault: sys_page_alloc failed: %e", r);
+
+	memmove(PFTEMP, addr, PGSIZE);
+
+	if ((r = sys_page_map(0, PFTEMP, 0, addr, PTE_P | PTE_U | PTE_W)) < 0)
+		panic("pgfault: sys_page_map failed: %e", r);
+
+	if ((r = sys_page_unmap(0, PFTEMP)) < 0)
+		panic("pgfault: sys_page_unmap failed: %e", r);
 }
 
 //
@@ -52,9 +64,21 @@ static int
 duppage(envid_t envid, unsigned pn)
 {
 	int r;
+	void *addr = (void *)(pn * PGSIZE);
+	pte_t pte = uvpt[pn];
 
-	// LAB 4: Your code here.
-	panic("duppage not implemented");
+	if ((pte & PTE_W) || (pte & PTE_COW)) {
+		// Map into child as COW
+		if ((r = sys_page_map(0, addr, envid, addr, PTE_P | PTE_U | PTE_COW)) < 0)
+			return r;
+		// Re-map in parent as COW (must come second — see exercise note)
+		if ((r = sys_page_map(0, addr, 0, addr, PTE_P | PTE_U | PTE_COW)) < 0)
+			return r;
+	} else {
+		// Read-only page: share it as-is
+		if ((r = sys_page_map(0, addr, envid, addr, PTE_P | PTE_U)) < 0)
+			return r;
+	}
 	return 0;
 }
 
@@ -77,8 +101,56 @@ duppage(envid_t envid, unsigned pn)
 envid_t
 fork(void)
 {
-	// LAB 4: Your code here.
-	panic("fork not implemented");
+	envid_t envid;
+	uintptr_t addr;
+	int r;
+
+	// 1. Install the C-level page fault handler in the parent.
+	set_pgfault_handler(pgfault);
+
+	// 2. Create the child environment.
+	envid = sys_exofork();
+	if (envid < 0)
+		panic("fork: sys_exofork failed: %e", envid);
+
+	if (envid == 0) {
+		// We are the child.
+		// Fix up thisenv to point to our own Env struct.
+		thisenv = &envs[ENVX(sys_getenvid())];
+		return 0;
+	}
+
+	// We are the parent.
+
+	// 3. Copy address space mappings for all pages below UTOP,
+	//    except the exception stack (UXSTACKTOP-PGSIZE .. UXSTACKTOP).
+	for (addr = 0; addr < UTOP - PGSIZE; addr += PGSIZE) {
+		// Check that the page directory entry and page table entry exist.
+		if (!(uvpd[PDX(addr)] & PTE_P))
+			continue;
+		if (!(uvpt[PGNUM(addr)] & PTE_P))
+			continue;
+
+		if ((r = duppage(envid, PGNUM(addr))) < 0)
+			panic("fork: duppage failed for va=%08x: %e", addr, r);
+	}
+
+	// 4. Allocate a fresh page for the child's exception stack
+	//    (cannot be COW because the fault handler itself runs there).
+	if ((r = sys_page_alloc(envid, (void *)(UXSTACKTOP - PGSIZE),
+	                        PTE_P | PTE_U | PTE_W)) < 0)
+		panic("fork: sys_page_alloc for child exception stack: %e", r);
+
+	// 5. Set the child's page-fault upcall entrypoint to match the parent's.
+	extern void _pgfault_upcall(void);
+	if ((r = sys_env_set_pgfault_upcall(envid, _pgfault_upcall)) < 0)
+		panic("fork: sys_env_set_pgfault_upcall: %e", r);
+
+	// 6. Mark the child runnable.
+	if ((r = sys_env_set_status(envid, ENV_RUNNABLE)) < 0)
+		panic("fork: sys_env_set_status: %e", r);
+
+	return envid;
 }
 
 // Challenge!
