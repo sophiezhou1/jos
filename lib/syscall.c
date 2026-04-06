@@ -8,36 +8,16 @@ syscall(int num, int check, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 {
 	int32_t ret;
 
-	if (a5 == 0) {
-		uint32_t syscallno = num;
-		uint32_t arg1 = a1;
-		uint32_t arg2 = a2;
-
-		asm volatile(
-			"pushl %%esi\n"
-			"pushl %%ebp\n"
-			"movl %%esp, %%ebp\n"
-			"leal 1f, %%esi\n"
-			"sysenter\n"
-			"1:\n"
-			"popl %%ebp\n"
-			"popl %%esi\n"
-			: "+a" (syscallno), "+d" (arg1), "+c" (arg2)
-			: "b" (a3), "D" (a4)
-			: "cc", "memory");
-		ret = syscallno;
-	} else {
-		asm volatile("int %1\n"
-			     : "=a" (ret)
-			     : "i" (T_SYSCALL),
-			       "a" (num),
-			       "d" (a1),
-			       "c" (a2),
-			       "b" (a3),
-			       "D" (a4),
-			       "S" (a5)
-			     : "cc", "memory");
-	}
+	asm volatile("int %1\n"
+		     : "=a" (ret)
+		     : "i" (T_SYSCALL),
+		       "a" (num),
+		       "d" (a1),
+		       "c" (a2),
+		       "b" (a3),
+		       "D" (a4),
+		       "S" (a5)
+		     : "cc", "memory");
 
 	if(check && ret > 0)
 		panic("syscall %d returned %d (> 0)", num, ret);
@@ -118,4 +98,3 @@ sys_ipc_recv(void *dstva)
 {
 	return syscall(SYS_ipc_recv, 1, (uint32_t)dstva, 0, 0, 0, 0);
 }
-
