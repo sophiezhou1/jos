@@ -568,9 +568,11 @@ env_run(struct Env *e)
     // Switch to its address space
     lcr3(PADDR(curenv->env_pgdir));
 
+	// We are done with kernel work for this environment until it traps back in.
+	unlock_kernel();
+
     // Pop the trap frame, jumping to user mode. This function does not return!
     env_pop_tf(&curenv->env_tf);
 
 	//panic("env_run not yet implemented");
 }
-
