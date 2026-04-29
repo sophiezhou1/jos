@@ -62,7 +62,26 @@ alloc_block(void)
 	// super->s_nblocks blocks in the disk altogether.
 
 	// LAB 5: Your code here.
-	panic("alloc_block not implemented");
+	//panic("alloc_block not implemented");
+	// Block 0 is the boot sector, Block 1 is the super block, 
+    // and Block 2 is the start of the bitmap.
+    uint32_t blockno;
+
+    // Scan disk for a free block
+    for (blockno = 0; blockno < super->s_nblocks; blockno++) {
+        if (block_is_free(blockno)) {
+            // Mark block as used. 
+            // We find the right 32-bit chunk of the bitmap, and clear specific bit to 0.
+            bitmap[blockno / 32] &= ~(1 << (blockno % 32));
+
+            flush_block(&bitmap[blockno / 32]);
+
+            // Return newly allocated block number
+            return blockno;
+        }
+    }
+
+    // If we get here, the disk is completely full
 	return -E_NO_DISK;
 }
 
