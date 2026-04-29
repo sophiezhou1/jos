@@ -141,7 +141,27 @@ devfile_write(struct Fd *fd, const void *buf, size_t n)
 	// remember that write is always allowed to write *fewer*
 	// bytes than requested.
 	// LAB 5: Your code here
-	panic("devfile_write not implemented");
+	//panic("devfile_write not implemented");
+
+	int r;
+
+    // 1. Cap data we try to send in a single IPC message
+    if (n > sizeof(fsipcbuf.write.req_buf)) {
+        n = sizeof(fsipcbuf.write.req_buf);
+    }
+
+    // 2. Package up request
+    fsipcbuf.write.req_fileid = fd->fd_file.id;
+    fsipcbuf.write.req_n = n;
+    memmove(fsipcbuf.write.req_buf, buf, n);
+
+    // 3. Send IPC request to the file server
+    if ((r = fsipc(FSREQ_WRITE, NULL)) < 0) {
+        return r;
+    }
+
+    // Return number of bytes written (the server sends this back as the IPC return value)
+    return r;
 }
 
 static int

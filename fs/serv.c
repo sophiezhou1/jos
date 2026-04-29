@@ -217,25 +217,25 @@ serve_read(envid_t envid, union Fsipc *ipc)
     struct OpenFile *o;
     int r;
     // Lab 5: Your code here:
-    // 1. Look up the open file for this specific client environment.
+    // 1. Look up open file for this specific client environment.
     if ((r = openfile_lookup(envid, req->req_fileid, &o)) < 0) {
         return r;
     }
 
-    // 2. Cap the read size to the size of the return buffer.
+    // 2. Cap read size to the size of return buffer.
     if (req->req_n > sizeof(ret->ret_buf)) {
         req->req_n = sizeof(ret->ret_buf);
     }
 
-    // 3. Read from the file into the return buffer.
+    // 3. Read from file into return buffer.
     if ((r = file_read(o->o_file, ret->ret_buf, req->req_n, o->o_fd->fd_offset)) < 0) {
         return r;
     }
 
-    // 4. Update the seek position.
+    // 4. Update seek position.
     o->o_fd->fd_offset += r;
 
-    // Return the actual number of bytes read.
+    // Return number of bytes read.
     return r;
 }
 
@@ -251,7 +251,34 @@ serve_write(envid_t envid, struct Fsreq_write *req)
 		cprintf("serve_write %08x %08x %08x\n", envid, req->req_fileid, req->req_n);
 
 	// LAB 5: Your code here.
-	panic("serve_write not implemented");
+	//panic("serve_write not implemented");
+	if (debug)
+        cprintf("serve_write %08x %08x %08x\n", envid, req->req_fileid, req->req_n);
+
+    // LAB 5: Your code here.
+    struct OpenFile *o;
+    int r;
+
+    // 1. Look up open file
+    if ((r = openfile_lookup(envid, req->req_fileid, &o)) < 0) {
+        return r;
+    }
+
+    // 2. Cap  write size so we don't overflow IPC buffer
+    if (req->req_n > sizeof(req->req_buf)) {
+        req->req_n = sizeof(req->req_buf);
+    }
+
+    // 3. Write the data to file using underlying file_write function
+    if ((r = file_write(o->o_file, req->req_buf, req->req_n, o->o_fd->fd_offset)) < 0) {
+        return r;
+    }
+
+    // 4. Advance file offset by number of bytes successfully written
+    o->o_fd->fd_offset += r;
+
+    // Return number of bytes written
+    return r;
 }
 
 // Stat ipc->stat.req_fileid.  Return the file's struct Stat to the

@@ -137,7 +137,28 @@ sys_env_set_trapframe(envid_t envid, struct Trapframe *tf)
 	// LAB 5: Your code here.
 	// Remember to check whether the user has supplied us with a good
 	// address!
-	panic("sys_env_set_trapframe not implemented");
+	//panic("sys_env_set_trapframe not implemented");
+
+	struct Env *e;
+    int r;
+
+    // 1. Check if the environment exists and if the caller has permission (checkperm = 1)
+    if ((r = envid2env(envid, &e, 1)) < 0) {
+        return r;
+    }
+
+    // 2. Ensure the user-provided trapframe pointer points to valid, readable user memory
+    user_mem_assert(curenv, tf, sizeof(struct Trapframe), PTE_U | PTE_P);
+
+    // 3. Copy the provided trapframe into the environment's structure
+    e->env_tf = *tf;
+
+    // 4. Force safe defaults to prevent privilege escalation
+    e->env_tf.tf_cs |= 3;                  // Ensure CPL is 3 (user mode)
+    e->env_tf.tf_eflags |= FL_IF;          // Ensure interrupts are enabled
+    e->env_tf.tf_eflags &= ~FL_IOPL_MASK;  // Ensure IOPL is 0 (no direct I/O access)
+
+    return 0;
 }
 
 // Set the page fault upcall for 'envid' by modifying the corresponding struct
@@ -440,6 +461,9 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
         case SYS_yield:
             sys_yield();
             return 0;
+		case SYS_env_set_trapframe:
+            return sys_env_set_trapframe((envid_t)a1, (struct Trapframe *)a2);
+            
         default:
             return -E_INVAL;
     }

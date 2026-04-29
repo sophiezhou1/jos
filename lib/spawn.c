@@ -302,6 +302,29 @@ static int
 copy_shared_pages(envid_t child)
 {
 	// LAB 5: Your code here.
-	return 0;
+	uint32_t addr;
+    int r;
+
+    // Loop through the entire user address space (up to UTOP)
+    for (addr = 0; addr < UTOP; addr += PGSIZE) {
+        
+        // Skip entire page directories (4MB chunks) if they aren't mapped
+        // This is a huge performance optimization
+        if ((uvpd[PDX(addr)] & PTE_P) == 0) {
+            addr = ROUNDDOWN(addr + PTSIZE, PTSIZE) - PGSIZE;
+            continue;
+        }
+
+        // Check if the specific page is mapped AND has the PTE_SHARE bit set
+        if ((uvpt[PGNUM(addr)] & PTE_P) && (uvpt[PGNUM(addr)] & PTE_SHARE)) {
+            // Map the page directly into the child, copying the exact same permissions
+            // We use PTE_SYSCALL to safely mask out hardware bits (like Accessed/Dirty)
+            if ((r = sys_page_map(0, (void*)addr, child, (void*)addr, uvpt[PGNUM(addr)] & PTE_SYSCALL)) < 0) {
+                return r;
+            }
+        }
+    }
+
+    return 0;
 }
 
