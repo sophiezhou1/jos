@@ -1,0 +1,49 @@
+a. What entries (rows) in the page directory have been filled in at this point? What addresses do they map and where do they point? In other words, fill out this table as much as possible:
+    +-----+----------------------+---------------------------------------+
+    |Entry| Base Virtual Address |  Points to (logically)                |
+    +=====+======================+=======================================+
+    |1023 | 0xFFC00000           | Page table for top 4MB of phys memory |
+    +-----+----------------------+---------------------------------------+
+    |1022 | 0xFF800000           | Page table for physical memory        |
+    +-----+----------------------+---------------------------------------+
+    |.    |                      |                                       |
+    +-----+----------------------+---------------------------------------+
+    |960  | 0xF0000000           | Remapped Physical Memory (KERNBASE)   |
+    +-----+----------------------+---------------------------------------+
+    |959  | 0xEFC00000           | kernel stack w guard page             |
+    +-----+----------------------+---------------------------------------+
+    |957  | 0xEF400000           | Cur. Page Table (UVPT)                |
+    +-----+----------------------+---------------------------------------+
+    |956  | 0xEF000000           | RO PAGES (UPAGES)                     |
+    +-----+----------------------+---------------------------------------+
+    |.    |                      |                                       |
+    +-----+----------------------+---------------------------------------+
+    |2    | 0x00800000           | unmapped                              |
+    +-----+----------------------+---------------------------------------+
+    |1    | 0x00400000           | unmapped                              |
+    +-----+----------------------+---------------------------------------+
+    |0    | 0x00000000           | [see next question]                   |
+    +-----+----------------------+---------------------------------------+
+
+b. We have placed the kernel and user environment in the same address space. Why will user programs not be able to read or write the kernel’s memory? What specific mechanisms protect the kernel memory?
+    * User programs are blocked by the Supervisor/User bit in the Page Table Entry. User programs can't read or write kernel memory bc kernel pages are mapped without the user permission bit PTE_U.
+      This bit is checked when trying to access memory and raises a fault if user code tries to access kernel.
+
+c. What is the maximum amount of physical memory that this operating system can support? Why?
+    * 256 MB (0xFFFFFFFF−0xF0000000=0x0FFFFFFF≈256 MB)
+
+d. How much space overhead is there for managing memory, if we actually had the maximum amount of physical memory? How is this overhead broken down?
+    * 772 Kb. 
+        * PageInfo Array: 256MB/4KB = 65536 pages (if 256MB) × 8 bytes = 512 KB.
+        * Page Directory: 1 page = 4 KB.
+        * Page Tables: 64 page tables. 64×4 KB = 256 KB.
+        * Total: 512+4+256=772 KB.
+
+e. Revisit the page table setup in kern/entry.S and kern/entrypgdir.c. Immediately after we turn on paging, EIP is still a low number (a little over 1MB). At what point do we transition to running at an EIP above KERNBASE? What makes it possible for us to continue executing at a low EIP between when we enable paging and when we begin running at an EIP above KERNBASE? Why is this transition necessary?
+    * The transition happens at the instruction jmp *%eax. The entry_pgdir uses double mapping. 
+      This ensures that when paging is enabled, the instruction the CPU is currently executing 
+      still exists.
+    * We can keep executing at low EIP after paging bc the page table maps the low virtual addresses to the same
+      physical memory, thus the cpu can still find the instructions it's already executing.
+    * The switch is necessary bc the kernel is meant to run at high addresses; the low addresses are used to 
+      turn the paging on and then the kernel switches to high memory since the low addr are limited in space.

@@ -18,12 +18,12 @@ SECTIONS
 
 	PROVIDE(etext = .);	/* Define the 'etext' symbol to this value */
 
-	.rodata : {
+	.rodata : AT(ADDR(.rodata) - 0xF0000000) {
 		*(.rodata .rodata.* .gnu.linkonce.r.*)
 	}
 
 	/* Include debugging information in kernel memory */
-	.stab : {
+	.stab : AT(ADDR(.stab)   - 0xF0000000) {
 		PROVIDE(__STAB_BEGIN__ = .);
 		*(.stab);
 		PROVIDE(__STAB_END__ = .);
@@ -31,7 +31,7 @@ SECTIONS
 				   for this section */
 	}
 
-	.stabstr : {
+	.stabstr : AT(ADDR(.stabstr)- 0xF0000000) {
 		PROVIDE(__STABSTR_BEGIN__ = .);
 		*(.stabstr);
 		PROVIDE(__STABSTR_END__ = .);
@@ -43,11 +43,11 @@ SECTIONS
 	. = ALIGN(0x1000);
 
 	/* The data segment */
-	.data : {
+	.data : AT(ADDR(.data)   - 0xF0000000) {
 		*(.data .data.*)
 	}
 
-	.bss : {
+	.bss : AT(ADDR(.bss)    - 0xF0000000) {
 		PROVIDE(edata = .);
 		*(.dynbss)
 		*(.bss .bss.*)

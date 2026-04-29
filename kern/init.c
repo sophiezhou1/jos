@@ -3,6 +3,7 @@
 #include <inc/stdio.h>
 #include <inc/string.h>
 #include <inc/assert.h>
+#include <inc/x86.h>
 
 #include <kern/monitor.h>
 #include <kern/console.h>
@@ -21,6 +22,14 @@ static void boot_aps(void);
 void
 i386_init(void)
 {
+	extern char edata[], end[];
+	extern void sysenter_handler(void);
+
+	// Before doing anything else, complete the ELF loading process.
+	// Clear the uninitialized global data (BSS) section of our program.
+	// This ensures that all static/global variables start out zero.
+	memset(edata, 0, end - edata);
+
 	// Initialize the console.
 	// Can't call cprintf until after we do this!
 	cons_init();
@@ -33,6 +42,9 @@ i386_init(void)
 	// Lab 3 user environment initialization functions
 	env_init();
 	trap_init();
+	wrmsr(MSR_IA32_SYSENTER_CS, GD_KT);
+	wrmsr(MSR_IA32_SYSENTER_ESP, KSTACKTOP);
+	wrmsr(MSR_IA32_SYSENTER_EIP, (uint32_t) sysenter_handler);
 
 	// Lab 4 multiprocessor initialization functions
 	mp_init();
@@ -43,6 +55,7 @@ i386_init(void)
 
 	// Acquire the big kernel lock before waking up APs
 	// Your code here:
+	lock_kernel();
 
 	// Starting non-boot CPUs
 	boot_aps();
@@ -115,9 +128,8 @@ mp_main(void)
 	// only one CPU can enter the scheduler at a time!
 	//
 	// Your code here:
-
-	// Remove this after you finish Exercise 6
-	for (;;);
+	lock_kernel();
+	sched_yield();
 }
 
 /*
