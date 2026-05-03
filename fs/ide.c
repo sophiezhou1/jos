@@ -13,6 +13,7 @@
 #define IDE_ERR		0x01
 
 static int diskno = 1;
+static uint32_t ide_seen_irq;
 
 static int
 ide_wait_ready(bool check_error)
@@ -27,10 +28,29 @@ ide_wait_ready(bool check_error)
 	return 0;
 }
 
+static int
+ide_wait_irq_ready(bool check_error)
+{
+	int r;
+
+	while (((r = inb(0x1F7)) & (IDE_BSY|IDE_DRDY)) != IDE_DRDY) {
+		// Wait for the disk interrupt to signal command completion.
+		ide_seen_irq = sys_ide_wait(ide_seen_irq);
+	}
+
+	if (check_error && (r & (IDE_DF|IDE_ERR)) != 0)
+		return -1;
+	return 0;
+}
+
 bool
 ide_probe_disk1(void)
 {
 	int r, x;
+
+	// Enable IDE interrupts.  The extra-credit path depends on IRQ 14
+	// waking the file-system environment after commands complete.
+	outb(0x3F6, 0);
 
 	// wait for Device 0 to be ready
 	ide_wait_ready(0);
@@ -67,19 +87,20 @@ ide_read(uint32_t secno, void *dst, size_t nsecs)
 
 	assert(nsecs <= 256);
 
-	ide_wait_ready(0);
-
-	outb(0x1F2, nsecs);
-	outb(0x1F3, secno & 0xFF);
-	outb(0x1F4, (secno >> 8) & 0xFF);
-	outb(0x1F5, (secno >> 16) & 0xFF);
-	outb(0x1F6, 0xE0 | ((diskno&1)<<4) | ((secno>>24)&0x0F));
-	outb(0x1F7, 0x20);	// CMD 0x20 means read sector
-
 	for (; nsecs > 0; nsecs--, dst += SECTSIZE) {
-		if ((r = ide_wait_ready(1)) < 0)
+		ide_wait_ready(0);
+
+		outb(0x1F2, 1);
+		outb(0x1F3, secno & 0xFF);
+		outb(0x1F4, (secno >> 8) & 0xFF);
+		outb(0x1F5, (secno >> 16) & 0xFF);
+		outb(0x1F6, 0xE0 | ((diskno&1)<<4) | ((secno>>24)&0x0F));
+		outb(0x1F7, 0x20);	// CMD 0x20 means read sector
+
+		if ((r = ide_wait_irq_ready(1)) < 0)
 			return r;
 		insl(0x1F0, dst, SECTSIZE/4);
+		secno++;
 	}
 
 	return 0;
@@ -92,21 +113,23 @@ ide_write(uint32_t secno, const void *src, size_t nsecs)
 
 	assert(nsecs <= 256);
 
-	ide_wait_ready(0);
-
-	outb(0x1F2, nsecs);
-	outb(0x1F3, secno & 0xFF);
-	outb(0x1F4, (secno >> 8) & 0xFF);
-	outb(0x1F5, (secno >> 16) & 0xFF);
-	outb(0x1F6, 0xE0 | ((diskno&1)<<4) | ((secno>>24)&0x0F));
-	outb(0x1F7, 0x30);	// CMD 0x30 means write sector
-
 	for (; nsecs > 0; nsecs--, src += SECTSIZE) {
+		ide_wait_ready(0);
+
+		outb(0x1F2, 1);
+		outb(0x1F3, secno & 0xFF);
+		outb(0x1F4, (secno >> 8) & 0xFF);
+		outb(0x1F5, (secno >> 16) & 0xFF);
+		outb(0x1F6, 0xE0 | ((diskno&1)<<4) | ((secno>>24)&0x0F));
+		outb(0x1F7, 0x30);	// CMD 0x30 means write sector
+
 		if ((r = ide_wait_ready(1)) < 0)
 			return r;
 		outsl(0x1F0, src, SECTSIZE/4);
+		if ((r = ide_wait_irq_ready(1)) < 0)
+			return r;
+		secno++;
 	}
 
 	return 0;
 }
-

@@ -104,3 +104,9 @@ sys_ipc_recv(void *dstva)
 {
 	return syscall(SYS_ipc_recv, 1, (uint32_t)dstva, 0, 0, 0, 0);
 }
+
+uint32_t
+sys_ide_wait(uint32_t seen)
+{
+	return syscall(SYS_ide_wait, 0, seen, 0, 0, 0, 0);
+}

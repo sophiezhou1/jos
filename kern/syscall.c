@@ -12,6 +12,8 @@
 #include <kern/console.h>
 #include <kern/sched.h>
 
+extern volatile uint32_t ide_irq_count;
+
 // Print a string to the system console.
 // The string is exactly 'len' characters long.
 // Destroys the environment on memory errors.
@@ -422,6 +424,21 @@ sys_ipc_recv(void *dstva)
 	return 0;
 }
 
+static int
+sys_ide_wait(uint32_t seen)
+{
+	if (curenv->env_type != ENV_TYPE_FS)
+		return -E_INVAL;
+
+	if (ide_irq_count != seen)
+		return ide_irq_count;
+
+	curenv->env_ide_waiting = 1;
+	curenv->env_status = ENV_NOT_RUNNABLE;
+	sched_yield();
+	return 0;
+}
+
 // Dispatches to the correct kernel function, passing the arguments.
 int32_t
 syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5)
@@ -456,10 +473,12 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
             return sys_env_set_pgfault_upcall((envid_t)a1, (void *) a2);
         case SYS_ipc_try_send:
             return sys_ipc_try_send((envid_t)a1, a2, (void *) a3, a4);
-        case SYS_ipc_recv:
-            return sys_ipc_recv((void *) a1);
-        case SYS_yield:
-            sys_yield();
+		case SYS_ipc_recv:
+			return sys_ipc_recv((void *) a1);
+		case SYS_ide_wait:
+			return sys_ide_wait(a1);
+		case SYS_yield:
+			sys_yield();
             return 0;
 		case SYS_env_set_trapframe:
             return sys_env_set_trapframe((envid_t)a1, (struct Trapframe *)a2);

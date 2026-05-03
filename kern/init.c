@@ -52,6 +52,7 @@ i386_init(void)
 
 	// Lab 4 multitasking initialization functions
 	pic_init();
+	irq_setmask_8259A(irq_mask_8259A & ~(1<<IRQ_IDE));
 
 	// Acquire the big kernel lock before waking up APs
 	// Your code here:

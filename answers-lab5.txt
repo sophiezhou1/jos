@@ -1,3 +1,6 @@
 Question 1. Do you have to do anything else to ensure that this I/O privilege setting is saved and
 restored properly when you subsequently switch from one environment to another? Why?
 
+No because the IO privilege level is stored in the IOPL bits of EFLAGS and JOS saves and restores
+an environment's full trapframe during switches. The EFLAGS is part of struct Trapframe and thus the
+IOPL is saved and restored automatically by iret when the environment runs again.

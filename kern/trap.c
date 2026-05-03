@@ -19,6 +19,19 @@
  * additional information in the latter case.
  */
 static struct Trapframe *last_tf;
+volatile uint32_t ide_irq_count;
+
+static void
+ide_wake_waiters(uint32_t value)
+{
+	for (int i = 0; i < NENV; i++) {
+		if (envs[i].env_ide_waiting) {
+			envs[i].env_ide_waiting = 0;
+			envs[i].env_tf.tf_regs.reg_eax = value;
+			envs[i].env_status = ENV_RUNNABLE;
+		}
+	}
+}
 
 /* Interrupt descriptor table.  (Must be built at run time because
  * shifted function addresses can't be represented in relocation records.)
@@ -289,8 +302,17 @@ trap_dispatch(struct Trapframe *tf)
 		return;
 
 	case IRQ_OFFSET + IRQ_TIMER:
+		ide_wake_waiters(ide_irq_count);
 		lapic_eoi();
 		sched_yield();
+		return;
+
+	case IRQ_OFFSET + IRQ_IDE:
+		inb(0x1F7);
+		ide_irq_count++;
+		ide_wake_waiters(ide_irq_count);
+		outb(IO_PIC2, 0x20);
+		lapic_eoi();
 		return;
 
 	// Handle keyboard and serial interrupts.
